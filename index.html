@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sales Forecasting Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f2ede4;
+  --s1:#faf7f2;
+  --s2:#f0ebe0;
+  --s3:#e6dfcf;
+  --s4:#d8d0bc;
+  --b1:rgba(90,70,30,0.11);
+  --b2:rgba(90,70,30,0.18);
+  --b3:rgba(90,70,30,0.30);
+  --tx:#1e1a10;
+  --tx2:#5c4e34;
+  --tx3:#9a8a6a;
+  --navy:#1e3a5f;
+  --navy2:#2d5491;
+  --blue:#1a5fcc;
+  --teal:#16736a;
+  --teal2:#1e9e91;
+  --amber:#b87010;
+  --red:#a82828;
+  --green:#1a6e38;
+  --purple:#5c3490;
+  --rose:#8c2858;
+  --r:6px;--rL:10px;
+  --hdr:54px;--fbar:50px;--side:296px;
+}
+body{font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--tx);min-height:100vh;display:flex;flex-direction:column;font-size:13px;line-height:1.4}
+
+/* ── HEADER ── */
+header{height:var(--hdr);background:var(--navy);display:flex;align-items:center;padding:0 18px;gap:12px;flex-shrink:0;position:sticky;top:0;z-index:300}
+.hlogo{width:28px;height:28px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.28);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff}
+.htitle{font-size:14px;font-weight:600;color:#fff}
+.hsub{font-size:11px;color:rgba(255,255,255,.4);margin-left:4px}
+.hright{margin-left:auto;display:flex;align-items:center;gap:7px}
+.hbtn{padding:5px 13px;border-radius:var(--r);font-size:12px;font-weight:500;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.88);cursor:pointer;transition:.15s;font-family:inherit}
+.hbtn:hover{background:rgba(255,255,255,.2);color:#fff}
+.hbtn.xlsx{background:var(--teal);border-color:var(--teal2);color:#fff}
+.hbtn.xlsx:hover{background:var(--teal2)}
+
+/* ── FILTER BAR ── */
+.fbar{height:var(--fbar);background:var(--s1);border-bottom:1px solid var(--b1);display:flex;align-items:center;padding:0 18px;gap:16px;flex-shrink:0;position:sticky;top:var(--hdr);z-index:200;flex-wrap:nowrap;overflow-x:auto}
+.fb-label{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--tx3);white-space:nowrap;flex-shrink:0}
+.fb-group{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.fb-sep{width:1px;height:22px;background:var(--b1);flex-shrink:0}
+.seg{padding:4px 13px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;color:var(--tx2);background:transparent;border:1px solid var(--b2);transition:.14s;white-space:nowrap;font-family:inherit}
+.seg:hover{border-color:var(--b3);color:var(--tx);background:var(--s2)}
+.seg.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.cseg{padding:4px 13px;border-radius:20px;font-size:11px;font-weight:500;cursor:pointer;color:var(--tx2);background:transparent;border:1px solid var(--b2);transition:.14s;white-space:nowrap;font-family:inherit}
+.cseg:hover{border-color:var(--b3);color:var(--tx);background:var(--s2)}
+.cseg.on-low{background:var(--red);color:#fff;border-color:var(--red)}
+.cseg.on-mid{background:var(--navy);color:#fff;border-color:var(--navy)}
+.cseg.on-high{background:var(--teal);color:#fff;border-color:var(--teal)}
+.fb-status{margin-left:auto;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.fb-info{font-size:11px;color:var(--tx3)}
+.fb-info strong{color:var(--tx)}
+.ctag{padding:2px 9px;border-radius:10px;font-size:10px;font-weight:700;letter-spacing:.04em}
+.ctag-low{background:rgba(168,40,40,.1);color:var(--red);border:1px solid rgba(168,40,40,.2)}
+.ctag-mid{background:rgba(30,58,95,.1);color:var(--navy);border:1px solid rgba(30,58,95,.2)}
+.ctag-high{background:rgba(22,115,106,.1);color:var(--teal);border:1px solid rgba(22,115,106,.2)}
+
+/* ── LAYOUT ── */
+.app{display:flex;flex:1;overflow:hidden;height:calc(100vh - var(--hdr) - var(--fbar))}
+aside{width:var(--side);background:var(--s1);border-right:1px solid var(--b1);overflow-y:auto;flex-shrink:0;display:flex;flex-direction:column}
+main{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:14px}
+
+/* ── SIDEBAR TABS ── */
+.stabs{display:flex;border-bottom:1px solid var(--b1);flex-shrink:0}
+.stab{flex:1;padding:10px 0;text-align:center;font-size:11px;font-weight:600;color:var(--tx3);cursor:pointer;border-bottom:2px solid transparent;transition:.14s;letter-spacing:.04em;text-transform:uppercase}
+.stab.on{color:var(--navy);border-bottom-color:var(--navy)}
+.spane{display:none;flex-direction:column;padding:14px;gap:12px;overflow-y:auto}
+.spane.on{display:flex}
+.slabel{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--tx3);margin-bottom:7px}
+
+/* ── EXCEL GRID ── */
+.gw{overflow-x:auto;border:1px solid var(--b2);border-radius:var(--r)}
+.eg{border-collapse:collapse;font-size:11px;min-width:100%}
+.eg th{background:var(--s3);padding:5px 7px;text-align:center;font-weight:600;color:var(--tx2);border:1px solid var(--b1);white-space:nowrap;font-size:10px;letter-spacing:.02em}
+.eg th.rh{text-align:left;min-width:88px;color:var(--tx3);background:var(--s2)}
+.eg td{padding:0;border:1px solid var(--b1)}
+.eg td input{width:64px;padding:4px 5px;background:transparent;border:none;outline:none;color:var(--tx);font-family:'Courier New',monospace;font-size:11px;text-align:right;display:block;transition:.1s}
+.eg td input:hover{background:rgba(30,58,95,.06)}
+.eg td input:focus{background:rgba(30,58,95,.1);color:var(--navy)}
+.eg td.rl{padding:5px 8px;background:var(--s2);font-size:10px;font-weight:600;white-space:nowrap;border-right:1px solid var(--b2)}
+.eg tr:nth-child(1) .rl{color:var(--navy2)}
+.eg tr:nth-child(2) .rl{color:var(--teal)}
+.eg tr:nth-child(3) .rl{color:var(--amber)}
+.eg tr.tot td{background:var(--s3);font-family:'Courier New',monospace;font-size:11px;text-align:right;padding:4px 6px;color:var(--tx2);font-weight:600}
+.eg tr.tot .rl{color:var(--tx3)}
+
+/* ── TOGGLES ── */
+.togs{display:flex;flex-direction:column;gap:5px}
+.tog{display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--s2);border-radius:var(--r);border:1px solid var(--b1);cursor:pointer;transition:.14s}
+.tog:hover{border-color:var(--b2)}
+.tog.on{border-color:rgba(30,58,95,.3);background:rgba(30,58,95,.05)}
+.tog-left{display:flex;align-items:center;gap:8px}
+.tog-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.tog-name{font-size:12px;color:var(--tx)}
+.tog-sub{font-size:10px;color:var(--tx3);font-family:'Courier New',monospace}
+.sw{width:32px;height:17px;border-radius:9px;background:var(--s4);border:1px solid var(--b2);position:relative;transition:.2s;flex-shrink:0}
+.sw::after{content:'';position:absolute;top:3px;left:3px;width:9px;height:9px;border-radius:50%;background:var(--tx3);transition:.2s}
+.tog.on .sw{background:rgba(30,58,95,.25);border-color:var(--navy2)}
+.tog.on .sw::after{transform:translateX(15px);background:var(--navy)}
+
+/* ── OVERWRITE FORM ── */
+.owg{display:flex;flex-direction:column;gap:4px}
+.owr{display:flex;align-items:center;gap:5px}
+.owm{font-size:10px;color:var(--tx3);width:36px;flex-shrink:0;font-family:'Courier New',monospace}
+.owi{flex:1;background:var(--s2);border:1px solid var(--b1);color:var(--tx);padding:4px 7px;border-radius:4px;font-size:11px;font-family:'Courier New',monospace;outline:none;text-align:right;transition:.12s;font-family:inherit}
+.owi:hover{border-color:var(--b2)}
+.owi:focus{border-color:var(--navy);background:rgba(30,58,95,.05)}
+.owi.mod{border-color:rgba(26,110,56,.45);color:var(--green)}
+.owai{font-size:10px;color:var(--tx3);width:48px;text-align:right;font-family:'Courier New',monospace;flex-shrink:0}
+.owx{width:17px;height:17px;border-radius:3px;background:transparent;border:1px solid transparent;color:var(--tx3);cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;transition:.12s;flex-shrink:0;font-family:inherit}
+.owx:hover{border-color:var(--b2);color:var(--red)}
+
+/* ── CONTROLS ── */
+.crow{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.clabel{font-size:11px;color:var(--tx2);white-space:nowrap}
+select{background:var(--s2);border:1px solid var(--b2);color:var(--tx);padding:5px 9px;border-radius:var(--r);font-size:12px;font-family:inherit;outline:none;cursor:pointer;transition:.12s}
+select:hover{border-color:var(--b3)}
+select:focus{border-color:var(--navy)}
+
+/* ── BUTTONS ── */
+.btn-run{width:100%;padding:9px;background:var(--navy);border:none;color:#fff;font-family:inherit;font-size:13px;font-weight:600;border-radius:var(--r);cursor:pointer;transition:.15s}
+.btn-run:hover{background:var(--navy2)}
+.btn-run:active{transform:scale(.98)}
+.btn-ghost{padding:4px 11px;border-radius:var(--r);font-size:11px;font-weight:500;background:transparent;border:1px solid var(--b2);color:var(--tx2);cursor:pointer;transition:.14s;font-family:inherit}
+.btn-ghost:hover{border-color:var(--b3);color:var(--tx)}
+
+/* ── KPI CARDS ── */
+.krow{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.kcard{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rL);padding:12px 14px;border-left:3px solid var(--b2)}
+.kcard.kn{border-left-color:var(--navy)}.kcard.kt{border-left-color:var(--teal)}.kcard.ka{border-left-color:var(--amber)}.kcard.kr{border-left-color:var(--red)}
+.kl{font-size:10px;color:var(--tx3);margin-bottom:4px;letter-spacing:.04em;text-transform:uppercase}
+.kv{font-size:20px;font-weight:300;letter-spacing:-.025em;color:var(--tx)}
+.kd{font-size:10px;margin-top:3px}
+.pos{color:var(--green)}.neg{color:var(--red)}.neu{color:var(--tx3)}
+
+/* ── PANELS ── */
+.panel{background:var(--s1);border:1px solid var(--b1);border-radius:var(--rL);padding:14px 16px}
+.ph{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap}
+.pt{font-size:13px;font-weight:600;color:var(--tx)}
+.ps{font-size:10px;color:var(--tx3);margin-top:2px}
+.leg{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.li{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--tx2)}
+.ls{width:16px;height:2px;border-radius:1px;flex-shrink:0}
+.ld{width:16px;height:0;flex-shrink:0}
+
+/* ── VIEW TABS ── */
+.vtabs{display:flex;gap:2px;background:var(--s3);border-radius:var(--r);padding:2px}
+.vtab{padding:4px 13px;border-radius:4px;font-size:11px;font-weight:500;cursor:pointer;color:var(--tx2);transition:.14s}
+.vtab.on{background:var(--s1);color:var(--navy);border:1px solid var(--b2);font-weight:600}
+
+/* ── CHART WRAPPERS ── */
+.cw{position:relative;width:100%}.h260{height:260px}.h200{height:200px}
+
+/* ── TABLE ── */
+.tw{overflow-x:auto}
+table.ft{width:100%;border-collapse:collapse;font-size:11px}
+table.ft thead th{padding:6px 10px;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--tx3);border-bottom:2px solid var(--b2);white-space:nowrap;text-align:right;background:var(--s2)}
+table.ft thead th:first-child{text-align:left}
+table.ft tbody tr:hover{background:rgba(30,58,95,.04)}
+table.ft tbody td{padding:6px 10px;border-bottom:1px solid var(--b1);color:var(--tx2);white-space:nowrap;text-align:right;font-family:'Courier New',monospace;font-size:11px}
+table.ft tbody td:first-child{text-align:left;font-family:inherit;font-size:11px;color:var(--tx)}
+.mtag{display:inline-block;padding:2px 7px;background:var(--s3);border-radius:3px;font-size:10px;color:var(--tx2)}
+.qtag{display:inline-block;padding:2px 9px;background:rgba(30,58,95,.08);border-radius:4px;font-size:10px;color:var(--navy);font-weight:600;border:1px solid rgba(30,58,95,.14)}
+.vp{display:inline-block;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:500}
+.vpos{background:rgba(26,110,56,.1);color:var(--green)}.vneg{background:rgba(168,40,40,.1);color:var(--red)}.vneu{background:var(--s3);color:var(--tx3)}
+table.ft tfoot td{padding:8px 10px;border-top:2px solid var(--b2);color:var(--tx);font-family:'Courier New',monospace;font-size:11px;font-weight:700;text-align:right;background:var(--s2)}
+table.ft tfoot td:first-child{text-align:left;font-family:inherit}
+
+/* ── COMBO GRID ── */
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:8px}
+.ccard{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px}
+.ccard.c-active{border-color:rgba(30,58,95,.4);background:rgba(30,58,95,.05);border-left:3px solid var(--navy)}
+.ccard.c-base{border-color:rgba(22,115,106,.35);background:rgba(22,115,106,.04);border-left:3px solid var(--teal)}
+.ccn{font-size:10px;font-weight:600;color:var(--tx2);margin-bottom:4px}
+.ccv{font-size:17px;font-weight:300;letter-spacing:-.02em;margin-bottom:2px}
+.ccs{font-size:10px;color:var(--tx3)}
+
+/* ── INFO NOTE ── */
+.inote{font-size:10px;color:var(--tx2);padding:8px 10px;background:rgba(30,58,95,.05);border:1px solid rgba(30,58,95,.1);border-radius:var(--r);line-height:1.6}
+.div{height:1px;background:var(--b1)}
+.empty{padding:28px;text-align:center;color:var(--tx3);font-size:12px}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(90,70,30,.14);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:rgba(90,70,30,.22)}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="hlogo">SF</div>
+  <span class="htitle">Sales Forecasting Dashboard</span>
+  <span class="hsub">— Scenario Engine</span>
+  <div class="hright">
+    <button class="hbtn" onclick="loadSample()">Load Sample</button>
+    <button class="hbtn" onclick="clearAll()">Clear</button>
+    <button class="hbtn xlsx" onclick="exportXLSX()">⬇ Export XLSX</button>
+  </div>
+</header>
+
+<!-- FILTER BAR -->
+<div class="fbar">
+  <span class="fb-label">Region</span>
+  <div class="fb-group">
+    <button class="seg on" data-r="ALL" onclick="setRegion(this)">All</button>
+    <button class="seg" data-r="EMEA" onclick="setRegion(this)">EMEA</button>
+    <button class="seg" data-r="NA" onclick="setRegion(this)">NA</button>
+    <button class="seg" data-r="APAC" onclick="setRegion(this)">APAC</button>
+  </div>
+  <div class="fb-sep"></div>
+  <span class="fb-label">Case</span>
+  <div class="fb-group">
+    <button class="cseg" data-c="low" onclick="setCase(this)">Low −15%</button>
+    <button class="cseg on-mid" data-c="mid" onclick="setCase(this)">Mid Base</button>
+    <button class="cseg" data-c="high" onclick="setCase(this)">High +20%</button>
+  </div>
+  <div class="fb-sep"></div>
+  <div class="fb-status">
+    <span class="fb-info">Viewing: <strong id="flabel">All Regions · Mid Case</strong></span>
+    <span class="ctag ctag-mid" id="ctag">MID</span>
+  </div>
+</div>
+
+<div class="app">
+<!-- SIDEBAR -->
+<aside>
+  <div class="stabs">
+    <div class="stab on" id="stab-data" onclick="sTab('data')">Data</div>
+    <div class="stab" id="stab-scen" onclick="sTab('scen')">Scenario</div>
+    <div class="stab" id="stab-ow" onclick="sTab('ow')">Overwrite</div>
+  </div>
+
+  <!-- DATA -->
+  <div class="spane on" id="spane-data">
+    <div>
+      <div class="slabel">Historical Input — 12 Months (€k)</div>
+      <div class="gw"><table class="eg" id="egrid"></table></div>
+    </div>
+    <div class="div"></div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <div class="slabel">Forecast Settings</div>
+      <div class="crow">
+        <span class="clabel">Method</span>
+        <select id="methodSel" onchange="maybeRun()">
+          <option value="wma">Weighted Moving Avg</option>
+          <option value="linreg">Linear Regression</option>
+          <option value="exp">Exp. Smoothing</option>
+          <option value="hybrid">Hybrid (avg all)</option>
+        </select>
+      </div>
+      <div class="crow">
+        <span class="clabel">Horizon</span>
+        <select id="horizonSel" onchange="onHorizonChange()">
+          <option value="3">3 months</option>
+          <option value="6">6 months</option>
+          <option value="9">9 months</option>
+          <option value="12" selected>12 months</option>
+          <option value="18">18 months</option>
+          <option value="24">24 months</option>
+        </select>
+      </div>
+    </div>
+    <div class="div"></div>
+    <button class="btn-run" onclick="runForecast()">▶ Run Forecast</button>
+    <div class="inote">Enter values in the grid — Tab or arrow keys to navigate. Row totals update live. Press Run Forecast or click Load Sample to begin.</div>
+  </div>
+
+  <!-- SCENARIO -->
+  <div class="spane" id="spane-scen">
+    <div class="slabel">Active Data Streams</div>
+    <div class="togs">
+      <div class="tog on" id="tog-D" onclick="togStream('D')">
+        <div class="tog-left"><div class="tog-dot" style="background:var(--navy2)"></div><div><div class="tog-name">Direct Sales</div><div class="tog-sub">B2B · Enterprise</div></div></div>
+        <div class="sw"></div>
+      </div>
+      <div class="tog on" id="tog-I" onclick="togStream('I')">
+        <div class="tog-left"><div class="tog-dot" style="background:var(--teal)"></div><div><div class="tog-name">Indirect Sales</div><div class="tog-sub">Channel · Partners</div></div></div>
+        <div class="sw"></div>
+      </div>
+      <div class="tog on" id="tog-P" onclick="togStream('P')">
+        <div class="tog-left"><div class="tog-dot" style="background:var(--amber)"></div><div><div class="tog-name">Production Fcst</div><div class="tog-sub">Supply ceiling</div></div></div>
+        <div class="sw"></div>
+      </div>
+    </div>
+    <div class="div"></div>
+    <div class="slabel">Case Multipliers</div>
+    <div class="inote"><strong>Low:</strong> −15% applied to AI forecast<br><strong>Mid:</strong> Base forecast (no adjustment)<br><strong>High:</strong> +20% applied to AI forecast<br><br>Case only adjusts the <em>scenario forecast</em>. Baseline always uses Mid for comparison.</div>
+    <div class="div"></div>
+    <div class="slabel">Region Scaling</div>
+    <div class="inote">EMEA ×0.92 · NA ×1.12 · APAC ×0.78<br>Multiplier applied to historical data before forecasting.</div>
+  </div>
+
+  <!-- OVERWRITE -->
+  <div class="spane" id="spane-ow">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+      <div class="slabel" style="margin:0">Manual Overrides</div>
+      <button class="btn-ghost" onclick="clearOWAll()">Clear all</button>
+    </div>
+    <div class="inote" style="margin-bottom:8px">AI reference on the right. Modified cells turn green. Overrides apply on top of the case-adjusted AI value.</div>
+    <div class="owg" id="owg"><div class="empty" style="padding:12px">Run forecast first</div></div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main>
+  <div class="krow">
+    <div class="kcard kn"><div class="kl">12M Historical</div><div class="kv" id="k1">—</div><div class="kd neu" id="k1d">Awaiting data</div></div>
+    <div class="kcard kt"><div class="kl">Scenario Forecast</div><div class="kv" id="k2">—</div><div class="kd neu" id="k2d">vs history</div></div>
+    <div class="kcard ka"><div class="kl">Baseline (All · Mid)</div><div class="kv" id="k3">—</div><div class="kd neu" id="k3d">All streams, mid case</div></div>
+    <div class="kcard kr"><div class="kl">Max Monthly Var.</div><div class="kv" id="k4">—</div><div class="kd neu" id="k4d">Scenario vs baseline</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph">
+      <div><div class="pt">Historical vs. Forward Forecast</div><div class="ps" id="csub">12 months history · forecast horizon</div></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <div class="vtabs">
+          <div class="vtab on" id="vtab-M" onclick="setView('M')">Monthly</div>
+          <div class="vtab" id="vtab-Q" onclick="setView('Q')">Quarterly</div>
+        </div>
+        <div class="leg">
+          <div class="li"><div class="ls" style="background:#2d5491"></div>History</div>
+          <div class="li"><div class="ld" style="border-top:2px dashed #5c3490"></div>Scenario</div>
+          <div class="li"><div class="ld" style="border-top:2px dashed #a09070"></div>Baseline</div>
+          <div class="li"><div class="ld" style="border-top:2px dashed #16736a"></div>Override</div>
+        </div>
+      </div>
+    </div>
+    <div class="cw h260"><canvas id="mainChart" role="img" aria-label="Line chart comparing historical data to scenario, baseline and override forecasts">Run forecast to view.</canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph">
+      <div><div class="pt">Variance Analysis</div><div class="ps">Delta (€k) per period · callouts on peak deviations</div></div>
+      <div class="leg">
+        <div class="li"><div class="ls" style="background:#2d5491"></div>Scenario vs Baseline</div>
+        <div class="li"><div class="ls" style="background:#5c3490"></div>Override vs AI</div>
+      </div>
+    </div>
+    <div class="cw h200"><canvas id="varChart" role="img" aria-label="Line chart showing variance between scenario and baseline">Run forecast to view.</canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="ph">
+      <div><div class="pt" id="tTitle">Forecast Table — Monthly</div><div class="ps">Edit values in the Overwrite tab · variances update live</div></div>
+      <span style="padding:2px 9px;border-radius:10px;font-size:10px;font-weight:600;background:rgba(30,58,95,.1);color:var(--navy);border:1px solid rgba(30,58,95,.18)" id="mPill">WMA</span>
+    </div>
+    <div class="tw">
+      <table class="ft" id="ftable">
+        <thead><tr>
+          <th style="text-align:left">Period</th>
+          <th>AI Forecast</th><th>Override</th><th>Baseline</th>
+          <th>%Δ vs AI</th><th>%Δ vs Baseline</th>
+          <th>Direct</th><th>Indirect</th><th>Production</th>
+        </tr></thead>
+        <tbody id="ftbody"><tr><td colspan="9"><div class="empty">Load data and run forecast</div></td></tr></tbody>
+        <tfoot><tr><td>Total</td><td id="ft1">—</td><td id="ft2">—</td><td id="ft3">—</td><td id="ft4">—</td><td id="ft5">—</td><td id="ft6">—</td><td id="ft7">—</td><td id="ft8">—</td></tr></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="ph">
+      <div><div class="pt">Variance Matrix — All Stream Combinations</div><div class="ps">Scenario totals for every possible combination · case-adjusted · active = navy · baseline = teal</div></div>
+    </div>
+    <div class="cgrid" id="cgrid"><div class="empty">Run forecast to view scenario matrix</div></div>
+  </div>
+</main>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════ */
+const S = {
+  togs: {D:true, I:true, P:true},
+  hist: {D:Array(12).fill(0), I:Array(12).fill(0), P:Array(12).fill(0)},
+  foreAI: [], foreBase: [], overrides: [], manEdited: [],
+  hlabs: [], flabs: [],
+  horizon: 12, view: 'M',
+  region: 'ALL', caseMode: 'mid',
+  ran: false
+};
+const RMULT = {ALL:1, EMEA:0.92, NA:1.12, APAC:0.78};
+const CMULT = {low:0.85, mid:1.0, high:1.20};
+let mainCI = null, varCI = null;
+
+/* ═══════════════════════════════════════════════
+   LABELS  (called once at init and on horizon change)
+═══════════════════════════════════════════════ */
+function buildLabels() {
+  const now = new Date();
+  S.hlabs = [];
+  S.flabs = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i - 1, 1);
+    S.hlabs.push(d.toLocaleString('en', {month:'short', year:'2-digit'}));
+  }
+  S.horizon = parseInt(document.getElementById('horizonSel').value) || 12;
+  for (let i = 1; i <= S.horizon; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i - 1, 1);
+    S.flabs.push(d.toLocaleString('en', {month:'short', year:'2-digit'}));
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   GRID  — built ONCE at init, never rebuilt
+═══════════════════════════════════════════════ */
+function buildGrid() {
+  buildLabels();
+  const t = document.getElementById('egrid');
+  const rows = ['Direct Sales','Indirect Sales','Prod. Fcst'];
+  const keys = ['D','I','P'];
+  let h = `<thead><tr><th class="rh">Stream</th>`;
+  S.hlabs.forEach(l => { h += `<th>${l}</th>`; });
+  h += `</tr></thead><tbody>`;
+  keys.forEach((k, ri) => {
+    h += `<tr><td class="rl">${rows[ri]}</td>`;
+    for (let c = 0; c < 12; c++) {
+      h += `<td><input type="number" step="0.1" id="g${k}${c}" value=""
+        oninput="onGI('${k}',${c},this.value)"
+        onkeydown="gNav(event,'${k}',${c})"></td>`;
+    }
+    h += `</tr>`;
+  });
+  h += `<tr class="tot"><td class="rl">Total</td>`;
+  for (let c = 0; c < 12; c++) h += `<td id="gt${c}">—</td>`;
+  h += `</tr></tbody>`;
+  t.innerHTML = h;
+}
+
+function onGI(k, c, val) {
+  const v = val === '' ? 0 : parseFloat(val);
+  S.hist[k][c] = isNaN(v) ? 0 : v;
+  updateTotals();
+  // Do NOT call maybeRun here — rebuilding would destroy the active cell
+}
+
+function gNav(e, k, c) {
+  const ks = ['D','I','P'], ki = ks.indexOf(k);
+  if (e.key === 'Tab' || e.key === 'Enter') {
+    e.preventDefault();
+    if (c < 11) focG(k, c+1);
+    else if (ki < 2) focG(ks[ki+1], 0);
+  }
+  if (e.key === 'ArrowRight' && c < 11) { e.preventDefault(); focG(k, c+1); }
+  if (e.key === 'ArrowLeft'  && c > 0)  { e.preventDefault(); focG(k, c-1); }
+  if (e.key === 'ArrowDown'  && ki < 2) { e.preventDefault(); focG(ks[ki+1], c); }
+  if (e.key === 'ArrowUp'    && ki > 0) { e.preventDefault(); focG(ks[ki-1], c); }
+}
+function focG(k, c) { document.getElementById(`g${k}${c}`)?.focus(); }
+
+function updateTotals() {
+  for (let c = 0; c < 12; c++) {
+    const tot = n(S.hist.D[c]) + n(S.hist.I[c]) + n(S.hist.P[c]);
+    const el = document.getElementById(`gt${c}`);
+    if (el) el.textContent = tot > 0 ? f(tot) : '—';
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════════ */
+function n(v)  { const x = parseFloat(v); return isNaN(x) ? 0 : x; }
+function f(v)  { if (v === null || v === undefined || isNaN(v)) return '—'; return (Math.round(v*10)/10).toLocaleString('en',{minimumFractionDigits:1,maximumFractionDigits:1}); }
+function fp(v) { return (v >= 0 ? '+' : '') + v.toFixed(1) + '%'; }
+function sm(a) { return a.reduce((s,v) => s + (v||0), 0); }
+function vc(v) { if (Math.abs(v) < 0.05) return 'vneu'; return v > 0 ? 'vpos' : 'vneg'; }
+
+function getStream(k) { return S.hist[k].map(v => n(v)); }
+
+function combHist(tog) {
+  const arrs = [];
+  if (tog.D) arrs.push(getStream('D'));
+  if (tog.I) arrs.push(getStream('I'));
+  if (tog.P) arrs.push(getStream('P'));
+  if (!arrs.length) return Array(12).fill(0);
+  return Array.from({length:12}, (_,i) => arrs.reduce((s,a) => s + (a[i]||0), 0));
+}
+
+function applyRegion(arr) {
+  const rm = RMULT[S.region] || 1;
+  return arr.map(v => v * rm);
+}
+
+// Case ONLY applied to scenario forecast, NOT to baseline
+function applyCase(arr) {
+  const cm = CMULT[S.caseMode] || 1;
+  return arr.map(v => Math.round(v * cm * 10) / 10);
+}
+
+/* ═══════════════════════════════════════════════
+   FORECAST METHODS
+═══════════════════════════════════════════════ */
+function wma(data, steps) {
+  const w=[5,3,2], ws=10, arr=[...data], out=[];
+  for (let s=0; s<steps; s++) {
+    const nn=arr.length;
+    const v=(arr[nn-1]*w[0]+arr[nn-2]*w[1]+arr[nn-3]*w[2])/ws;
+    out.push(v); arr.push(v);
+  }
+  return out;
+}
+function linreg(data, steps) {
+  const nn=data.length, xs=Array.from({length:nn},(_,i)=>i+1);
+  const xm=sm(xs)/nn, ym=sm(data)/nn;
+  const num=xs.reduce((s,x,i)=>s+(x-xm)*(data[i]-ym),0);
+  const den=xs.reduce((s,x)=>s+(x-xm)**2,0);
+  const sl=den?num/den:0, ic=ym-sl*xm;
+  return Array.from({length:steps},(_,i)=>Math.max(0, ic+sl*(nn+i+1)));
+}
+function expS(data, steps) {
+  const a=0.35; let lv=data[0];
+  for (let i=1; i<data.length; i++) lv=a*data[i]+(1-a)*lv;
+  return Array(steps).fill(lv);
+}
+function hybr(data, steps) {
+  const a=wma(data,steps), b=linreg(data,steps), c=expS(data,steps);
+  return Array.from({length:steps},(_,i)=>(a[i]+b[i]+c[i])/3);
+}
+function applyMethod(data) {
+  if (data.filter(v=>v>0).length < 3) return Array(S.horizon).fill(0);
+  const m = document.getElementById('methodSel').value;
+  if (m === 'linreg') return linreg(data, S.horizon);
+  if (m === 'exp')    return expS(data, S.horizon);
+  if (m === 'hybrid') return hybr(data, S.horizon);
+  return wma(data, S.horizon);
+}
+
+/* ═══════════════════════════════════════════════
+   REGION & CASE FILTERS
+═══════════════════════════════════════════════ */
+function setRegion(btn) {
+  document.querySelectorAll('.seg').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  S.region = btn.dataset.r;
+  updateFLabel();
+  if (S.ran) runForecast();
+}
+
+function setCase(btn) {
+  document.querySelectorAll('.cseg').forEach(b => b.classList.remove('on-low','on-mid','on-high'));
+  S.caseMode = btn.dataset.c;
+  btn.classList.add(`on-${S.caseMode}`);
+  const tag = document.getElementById('ctag');
+  tag.className = `ctag ctag-${S.caseMode}`;
+  tag.textContent = S.caseMode.toUpperCase();
+  // Reset manual overrides so they re-derive from new case
+  S.manEdited = Array(S.horizon).fill(false);
+  S.overrides = [];
+  updateFLabel();
+  if (S.ran) runForecast();
+}
+
+function updateFLabel() {
+  const rl = S.region === 'ALL' ? 'All Regions' : S.region;
+  const cl = S.caseMode.charAt(0).toUpperCase() + S.caseMode.slice(1) + ' Case';
+  document.getElementById('flabel').textContent = `${rl} · ${cl}`;
+}
+
+/* ═══════════════════════════════════════════════
+   RUN FORECAST  (never rebuilds the grid DOM)
+═══════════════════════════════════════════════ */
+function runForecast() {
+  buildLabels(); // refresh label arrays for current horizon
+  const rm = RMULT[S.region] || 1;
+
+  // Scenario history (toggled streams × region)
+  const scenH = applyRegion(combHist(S.togs));
+  // Baseline history (all streams × region, but uses mid case for fair comparison)
+  const baseH = applyRegion(combHist({D:true, I:true, P:true}));
+
+  const hasData = scenH.filter(v=>v>0).length >= 3 || baseH.filter(v=>v>0).length >= 3;
+  if (!hasData) { alert('Please enter at least 3 months of historical data in the Data tab.'); return; }
+
+  const onlyP = S.togs.P && !S.togs.D && !S.togs.I;
+  const rawScen = applyMethod(onlyP ? applyRegion(getStream('P')) : scenH);
+  const rawBase = applyMethod(baseH); // baseline always mid case
+
+  // Scenario gets case multiplier; baseline is always mid (×1.0)
+  S.foreAI   = applyCase(rawScen).map(v => Math.round(v*10)/10);
+  S.foreBase = rawBase.map(v => Math.round(v*10)/10); // no case adjustment on baseline
+
+  // Init or refresh overrides
+  if (!S.ran || S.overrides.length !== S.horizon) {
+    S.overrides  = [...S.foreAI];
+    S.manEdited  = Array(S.horizon).fill(false);
+  } else {
+    // Only overwrite non-user-edited slots
+    S.foreAI.forEach((v, i) => { if (!S.manEdited[i]) S.overrides[i] = v; });
+  }
+  S.ran = true;
+
+  updateMPill();
+  renderMainChart();
+  renderVarChart();
+  renderTable();
+  renderOWForm();
+  renderComboGrid();
+  updateKPIs();
+}
+
+function maybeRun() { if (S.ran) runForecast(); }
+
+function onHorizonChange() {
+  // Horizon change needs to reset overrides and re-run
+  S.manEdited = Array(parseInt(document.getElementById('horizonSel').value)||12).fill(false);
+  S.overrides = [];
+  maybeRun();
+}
+
+/* ═══════════════════════════════════════════════
+   QUARTERLY HELPERS
+═══════════════════════════════════════════════ */
+function toQNull(arr) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += 3) {
+    const ch = arr.slice(i, i+3);
+    const ok = ch.some(v => v !== null && v !== undefined);
+    out.push(ok ? ch.filter(v => v !== null).reduce((a,b) => a+(b||0), 0) : null);
+  }
+  return out;
+}
+function qSm(arr) {
+  const o = [];
+  for (let i = 0; i < arr.length; i += 3)
+    o.push(arr.slice(i, i+3).reduce((a,b) => a+(b||0), 0));
+  return o;
+}
+
+/* ═══════════════════════════════════════════════
+   MAIN CHART
+═══════════════════════════════════════════════ */
+const CC = { hist:'#2d5491', scen:'#5c3490', base:'#a09070', ow:'#16736a' };
+
+function renderMainChart() {
+  if (mainCI) { mainCI.destroy(); mainCI = null; }
+  const isQ = S.view === 'Q';
+  const rm = RMULT[S.region] || 1;
+  const scenH = applyRegion(combHist(S.togs)).map(v => Math.round(v*10)/10);
+
+  const histFull = [...scenH, ...Array(S.horizon).fill(null)];
+  const scenFull = [...Array(12).fill(null), ...S.foreAI];
+  const baseFull = [...Array(12).fill(null), ...S.foreBase];
+  const owFull   = [...Array(12).fill(null), ...S.overrides];
+  const allLabs  = [...S.hlabs, ...S.flabs];
+
+  let labs, hd, sd, bd, od;
+  if (isQ) {
+    const tot = Math.ceil(allLabs.length / 3);
+    labs = Array.from({length:tot}, (_,i) => {
+      const yr = new Date().getFullYear() + Math.floor((i * 3) / (S.hlabs.length + S.flabs.length));
+      return `Q${(i%4)+1} '${String(yr).slice(2)}`;
+    });
+    hd = toQNull(histFull); sd = toQNull(scenFull);
+    bd = toQNull(baseFull); od = toQNull(owFull);
+  } else {
+    labs = allLabs; hd = histFull; sd = scenFull; bd = baseFull; od = owFull;
+  }
+
+  const divPl = {
+    id:'divpl',
+    afterDraw(chart) {
+      const ctx = chart.ctx, xs = chart.scales.x;
+      const idx = isQ ? Math.floor(12/3)-1 : 11;
+      if (idx >= labs.length) return;
+      const px = xs.getPixelForValue(idx);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(90,70,30,.2)'; ctx.lineWidth = 1; ctx.setLineDash([4,4]);
+      ctx.beginPath(); ctx.moveTo(px, chart.chartArea.top); ctx.lineTo(px, chart.chartArea.bottom); ctx.stroke();
+      ctx.fillStyle = 'rgba(90,70,30,.4)'; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
+      ctx.fillText('Forecast →', px+4, chart.chartArea.top+12);
+      ctx.restore();
+    }
+  };
+
+  const tooltipOpts = {
+    backgroundColor:'#faf7f2', borderColor:'rgba(90,70,30,.2)', borderWidth:1,
+    titleColor:'#1e1a10', bodyColor:'#5c4e34', padding:10,
+    callbacks: { label: c => ` ${c.dataset.label}: €${c.raw !== null ? c.raw.toLocaleString() : '—'}k` }
+  };
+
+  mainCI = new Chart(document.getElementById('mainChart'), {
+    type:'line', plugins:[divPl],
+    data: { labels: labs, datasets: [
+      {label:'Historical', data:hd, borderColor:CC.hist, borderWidth:2, pointRadius:isQ?4:2.5, pointBackgroundColor:CC.hist, tension:.3, spanGaps:false},
+      {label:'Scenario',   data:sd, borderColor:CC.scen, borderWidth:2, borderDash:[6,3], pointRadius:isQ?4:2.5, pointBackgroundColor:CC.scen, tension:.3, spanGaps:false},
+      {label:'Baseline',   data:bd, borderColor:CC.base, borderWidth:1.5, borderDash:[3,5], pointRadius:isQ?3:2, pointBackgroundColor:CC.base, tension:.3, spanGaps:false},
+      {label:'Override',   data:od, borderColor:CC.ow, borderWidth:1.5, borderDash:[2,4], pointRadius:isQ?3:2, pointStyle:'rectRot', pointBackgroundColor:CC.ow, tension:.3, spanGaps:false}
+    ]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:tooltipOpts },
+      scales: {
+        x: { grid:{color:'rgba(90,70,30,.06)'}, ticks:{color:'#9a8a6a', font:{size:10}, maxRotation:45} },
+        y: { grid:{color:'rgba(90,70,30,.06)'}, ticks:{color:'#9a8a6a', font:{size:10}, callback:v=>`€${v.toLocaleString()}k`}, beginAtZero:false }
+      }
+    }
+  });
+  document.getElementById('csub').textContent =
+    `12 months history · ${S.horizon}-month ${isQ?'quarterly':'monthly'} forecast · ${S.region} · ${S.caseMode.toUpperCase()} case`;
+}
+
+/* ═══════════════════════════════════════════════
+   VARIANCE CHART
+═══════════════════════════════════════════════ */
+function renderVarChart() {
+  if (varCI) { varCI.destroy(); varCI = null; }
+  const isQ = S.view === 'Q';
+  const d1 = S.foreAI.map((v,i) => Math.round((v-(S.foreBase[i]||0))*10)/10);
+  const d2 = S.overrides.map((v,i) => Math.round((v-S.foreAI[i])*10)/10);
+  const labs = isQ ? qSm(d1).map((_,i)=>`Q${(i%4)+1}`) : S.flabs;
+  const v1 = isQ ? toQNull(d1) : d1;
+  const v2 = isQ ? toQNull(d2) : d2;
+
+  const calloutPl = {
+    id:'callout',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      chart.data.datasets.forEach((ds, di) => {
+        const meta = chart.getDatasetMeta(di);
+        const vals = chart.data.datasets[di].data.filter(v => v !== null && v !== undefined);
+        if (!vals.length) return;
+        const maxAbs = Math.max(...vals.map(Math.abs));
+        if (maxAbs === 0) return;
+        meta.data.forEach((pt, i) => {
+          const val = chart.data.datasets[di].data[i];
+          if (val === null || val === undefined || Math.abs(val) < maxAbs * 0.6) return;
+          const x = pt.x, y = pt.y;
+          const txt = (val >= 0 ? '+' : '') + val.toFixed(1) + 'k';
+          ctx.save();
+          const bg = di === 0 ? 'rgba(45,84,145,.88)' : 'rgba(92,52,144,.88)';
+          ctx.fillStyle = bg;
+          ctx.font = '500 10px Courier New, monospace';
+          const tw = ctx.measureText(txt).width + 12, th = 16, yp = y - 26;
+          ctx.beginPath();
+          if (ctx.roundRect) ctx.roundRect(x-tw/2, yp, tw, th, 3);
+          else ctx.rect(x-tw/2, yp, tw, th);
+          ctx.fill();
+          ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(txt, x, yp + th/2);
+          ctx.strokeStyle = bg; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(x, yp+th); ctx.lineTo(x, y-4); ctx.stroke();
+          ctx.restore();
+        });
+      });
+    }
+  };
+
+  varCI = new Chart(document.getElementById('varChart'), {
+    type:'line', plugins:[calloutPl],
+    data: { labels: labs, datasets: [
+      {label:'Scenario vs Baseline', data:v1, borderColor:CC.hist, borderWidth:2, pointRadius:4, pointBackgroundColor:CC.hist, tension:.3, fill:{target:'origin',above:'rgba(45,84,145,.07)',below:'rgba(168,40,40,.07)'}, spanGaps:false},
+      {label:'Override vs AI',       data:v2, borderColor:CC.scen, borderWidth:2, pointRadius:4, pointBackgroundColor:CC.scen, tension:.3, fill:{target:'origin',above:'rgba(92,52,144,.07)',below:'rgba(168,40,40,.07)'}, spanGaps:false}
+    ]},
+    options: {
+      responsive:true, maintainAspectRatio:false, layout:{padding:{top:40}},
+      plugins: {
+        legend:{display:false},
+        tooltip:{backgroundColor:'#faf7f2',borderColor:'rgba(90,70,30,.2)',borderWidth:1,titleColor:'#1e1a10',bodyColor:'#5c4e34',padding:10,
+          callbacks:{label:c=>` ${c.dataset.label}: €${c.raw!==null?(c.raw>=0?'+':'')+c.raw.toFixed(1):'—'}k`}}
+      },
+      scales: {
+        x: { grid:{color:'rgba(90,70,30,.06)'}, ticks:{color:'#9a8a6a',font:{size:10},maxRotation:45} },
+        y: { grid:{color:'rgba(90,70,30,.06)'}, ticks:{color:'#9a8a6a',font:{size:10},callback:v=>`€${v>=0?'+':''}${v.toFixed(0)}k`}, beginAtZero:false }
+      }
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════
+   TABLE
+═══════════════════════════════════════════════ */
+function renderTable() {
+  const isQ = S.view === 'Q';
+  document.getElementById('tTitle').textContent = `Forecast Table — ${isQ?'Quarterly':'Monthly'}`;
+  const rm = RMULT[S.region] || 1;
+  const dF = applyCase(applyMethod(getStream('D').map(v => v*rm)));
+  const iF = applyCase(applyMethod(getStream('I').map(v => v*rm)));
+  const pF = applyCase(applyMethod(getStream('P').map(v => v*rm)));
+  isQ ? renderQTable(dF,iF,pF) : renderMTable(dF,iF,pF);
+}
+
+function renderMTable(dF, iF, pF) {
+  const tb = document.getElementById('ftbody'); tb.innerHTML = '';
+  S.foreAI.forEach((ai, i) => {
+    const ow = S.overrides[i] ?? ai, base = S.foreBase[i] ?? ai;
+    const vA = ai ? ((ow-ai)/ai*100) : 0, vB = base ? ((ow-base)/base*100) : 0;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="mtag">${S.flabs[i]}</span></td>
+      <td>${f(ai)}</td>
+      <td style="color:${S.manEdited[i]?'var(--green)':'inherit'}">${f(ow)}</td>
+      <td>${f(base)}</td>
+      <td><span class="vp ${vc(vA)}">${fp(vA)}</span></td>
+      <td><span class="vp ${vc(vB)}">${fp(vB)}</span></td>
+      <td>${f(dF[i])}</td><td>${f(iF[i])}</td><td>${f(pF[i])}</td>`;
+    tb.appendChild(tr);
+  });
+  updateFoot(dF, iF, pF);
+}
+
+function renderQTable(dF, iF, pF) {
+  const tb = document.getElementById('ftbody'); tb.innerHTML = '';
+  const qAI=qSm(S.foreAI), qOW=qSm(S.overrides), qBase=qSm(S.foreBase);
+  qAI.forEach((ai, i) => {
+    const ow=qOW[i]??ai, base=qBase[i]??ai;
+    const vA=ai?((ow-ai)/ai*100):0, vB=base?((ow-base)/base*100):0;
+    const yr = new Date().getFullYear() + (i >= 4 ? 1 : 0);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td><span class="qtag">Q${(i%4)+1} ${yr}</span></td>
+      <td>${f(ai)}</td><td>${f(ow)}</td><td>${f(base)}</td>
+      <td><span class="vp ${vc(vA)}">${fp(vA)}</span></td>
+      <td><span class="vp ${vc(vB)}">${fp(vB)}</span></td>
+      <td>${f(qSm(dF)[i])}</td><td>${f(qSm(iF)[i])}</td><td>${f(qSm(pF)[i])}</td>`;
+    tb.appendChild(tr);
+  });
+  updateFoot(dF, iF, pF);
+}
+
+function updateFoot(dF, iF, pF) {
+  const ai=sm(S.foreAI), ow=sm(S.overrides), base=sm(S.foreBase);
+  const vA=ai?((ow-ai)/ai*100):0, vB=base?((ow-base)/base*100):0;
+  document.getElementById('ft1').textContent = f(ai);
+  document.getElementById('ft2').textContent = f(ow);
+  document.getElementById('ft3').textContent = f(base);
+  document.getElementById('ft4').textContent = fp(vA);
+  document.getElementById('ft5').textContent = fp(vB);
+  document.getElementById('ft6').textContent = f(sm(dF));
+  document.getElementById('ft7').textContent = f(sm(iF));
+  document.getElementById('ft8').textContent = f(sm(pF));
+}
+
+/* ═══════════════════════════════════════════════
+   OVERWRITE FORM
+═══════════════════════════════════════════════ */
+function renderOWForm() {
+  const ctr = document.getElementById('owg');
+  if (!S.ran || !S.foreAI.length) { ctr.innerHTML='<div class="empty" style="padding:10px">Run forecast first</div>'; return; }
+  let h = '';
+  S.foreAI.forEach((ai, i) => {
+    const ow = S.overrides[i] ?? ai, mod = S.manEdited[i];
+    h += `<div class="owr">
+      <span class="owm">${S.flabs[i]||'M'+(i+1)}</span>
+      <input class="owi${mod?' mod':''}" type="number" step="0.1" id="ow${i}"
+        value="${isNaN(ow)?'':+(Math.round(ow*10)/10)}"
+        oninput="onOW(${i},this)" onchange="onOW(${i},this)" title="AI: ${f(ai)}">
+      <span class="owai">${f(ai)}</span>
+      <button class="owx" onclick="clearOW(${i})" title="Reset">✕</button>
+    </div>`;
+  });
+  ctr.innerHTML = h;
+}
+
+function onOW(i, el) {
+  const v = parseFloat(el.value);
+  if (!isNaN(v)) {
+    S.overrides[i] = v; S.manEdited[i] = true;
+    el.classList.add('mod');
+    refreshOW();
+  }
+}
+function clearOW(i) {
+  S.overrides[i] = S.foreAI[i]; S.manEdited[i] = false;
+  const el = document.getElementById(`ow${i}`);
+  if (el) { el.value = +(Math.round(S.foreAI[i]*10)/10); el.classList.remove('mod'); }
+  refreshOW();
+}
+function clearOWAll() {
+  S.overrides = [...S.foreAI]; S.manEdited = Array(S.horizon).fill(false);
+  renderOWForm(); refreshOW();
+}
+function refreshOW() { renderMainChart(); renderVarChart(); renderTable(); updateKPIs(); }
+
+/* ═══════════════════════════════════════════════
+   COMBO GRID — all 7 combinations
+═══════════════════════════════════════════════ */
+const COMBOS = [
+  {key:'D',   label:'Direct Only',         tog:{D:true, I:false,P:false}, col:'var(--navy2)'},
+  {key:'I',   label:'Indirect Only',       tog:{D:false,I:true, P:false}, col:'var(--teal)'},
+  {key:'P',   label:'Production Only',     tog:{D:false,I:false,P:true},  col:'var(--amber)'},
+  {key:'DI',  label:'Direct + Indirect',   tog:{D:true, I:true, P:false}, col:'var(--purple)'},
+  {key:'DP',  label:'Direct + Production', tog:{D:true, I:false,P:true},  col:'var(--rose)'},
+  {key:'IP',  label:'Indirect + Prod.',    tog:{D:false,I:true, P:true},  col:'var(--blue)'},
+  {key:'DIP', label:'All Streams',         tog:{D:true, I:true, P:true},  col:'var(--teal)'},
+];
+
+function renderComboGrid() {
+  const ctr = document.getElementById('cgrid');
+  const rm = RMULT[S.region] || 1;
+  // Baseline = all streams, mid case, region-adjusted
+  const baseRaw = applyMethod(applyRegion(combHist({D:true,I:true,P:true})));
+  const baseTotal = sm(baseRaw); // no case multiplier on baseline
+  const activeKey = (S.togs.D?'D':'')+(S.togs.I?'I':'')+(S.togs.P?'P':'');
+
+  let html = '';
+  COMBOS.forEach(c => {
+    const raw = applyMethod(applyRegion(combHist(c.tog)));
+    // Apply case to scenario combos too for consistency
+    const total = sm(applyCase(raw));
+    const delta = baseTotal ? ((total-baseTotal)/baseTotal*100) : 0;
+    const isActive = c.key === activeKey, isBase = c.key === 'DIP';
+    const cls = isBase ? 'ccard c-base' : isActive ? 'ccard c-active' : 'ccard';
+    html += `<div class="${cls}">
+      <div class="ccn" style="color:${c.col}">${c.label}${isActive?' ← active':isBase?' ← baseline':''}</div>
+      <div class="ccv" style="color:${c.col}">€${f(total)}k</div>
+      <div class="ccs"><span class="${delta>=0?'pos':'neg'}">${fp(delta)}</span> vs baseline · <span style="color:var(--tx3)">${S.caseMode.toUpperCase()}</span></div>
+    </div>`;
+  });
+  ctr.innerHTML = html;
+}
+
+/* ═══════════════════════════════════════════════
+   KPIs
+═══════════════════════════════════════════════ */
+function updateKPIs() {
+  if (!S.ran) return;
+  const histTot = sm(applyRegion(combHist(S.togs)));
+  const foreTot = sm(S.overrides);
+  const baseTot = sm(S.foreBase);
+  const growH = histTot ? ((foreTot-histTot)/histTot*100) : 0;
+  const growB = baseTot ? ((foreTot-baseTot)/baseTot*100) : 0;
+  const maxVar = S.foreAI.length ? Math.max(...S.foreAI.map((v,i)=>Math.abs(v-(S.foreBase[i]||0)))) : 0;
+
+  document.getElementById('k1').textContent = `€${f(histTot)}k`;
+  document.getElementById('k1d').textContent = `${S.region} · active streams`;
+  document.getElementById('k2').textContent = `€${f(foreTot)}k`;
+  document.getElementById('k2d').className = `kd ${growH>=0?'pos':'neg'}`;
+  document.getElementById('k2d').textContent = `${growH>=0?'▲':'▼'} ${Math.abs(growH).toFixed(1)}% vs history`;
+  document.getElementById('k3').textContent = `€${f(baseTot)}k`;
+  document.getElementById('k3d').className = `kd ${growB>=0?'pos':'neg'}`;
+  document.getElementById('k3d').textContent = `${growB>=0?'▲':'▼'} ${Math.abs(growB).toFixed(1)}% vs baseline`;
+  document.getElementById('k4').textContent = `€${f(maxVar)}k`;
+  document.getElementById('k4d').textContent = 'Max monthly gap';
+}
+
+/* ═══════════════════════════════════════════════
+   TABS / TOGGLES / VIEW
+═══════════════════════════════════════════════ */
+function sTab(t) {
+  ['data','scen','ow'].forEach(x => {
+    document.getElementById(`stab-${x}`).classList.toggle('on', x===t);
+    document.getElementById(`spane-${x}`).classList.toggle('on', x===t);
+  });
+}
+function togStream(k) {
+  S.togs[k] = !S.togs[k];
+  document.getElementById(`tog-${k}`).classList.toggle('on', S.togs[k]);
+  S.manEdited = Array(S.horizon).fill(false); S.overrides = [];
+  if (S.ran) runForecast();
+}
+function setView(v) {
+  S.view = v;
+  document.getElementById('vtab-M').classList.toggle('on', v==='M');
+  document.getElementById('vtab-Q').classList.toggle('on', v==='Q');
+  if (S.ran) { renderMainChart(); renderVarChart(); renderTable(); }
+}
+function updateMPill() {
+  const m = {wma:'WMA',linreg:'Lin.Reg',exp:'Exp.Smooth',hybrid:'Hybrid'};
+  document.getElementById('mPill').textContent = m[document.getElementById('methodSel').value] || 'WMA';
+}
+
+/* ═══════════════════════════════════════════════
+   SAMPLE DATA
+═══════════════════════════════════════════════ */
+function loadSample() {
+  const D=[420,438,461,479,512,498,530,545,520,562,585,610];
+  const I=[210,198,225,240,235,255,248,262,275,260,280,295];
+  const P=[680,690,730,755,790,780,820,845,830,860,900,935];
+  // Set state
+  D.forEach((v,i) => S.hist.D[i]=v);
+  I.forEach((v,i) => S.hist.I[i]=v);
+  P.forEach((v,i) => S.hist.P[i]=v);
+  // Set DOM inputs
+  D.forEach((v,i) => { const el=document.getElementById(`gD${i}`); if(el) el.value=v; });
+  I.forEach((v,i) => { const el=document.getElementById(`gI${i}`); if(el) el.value=v; });
+  P.forEach((v,i) => { const el=document.getElementById(`gP${i}`); if(el) el.value=v; });
+  updateTotals();
+  S.manEdited = Array(S.horizon).fill(false);
+  S.overrides = [];
+  runForecast();
+}
+
+function clearAll() {
+  ['D','I','P'].forEach(k => {
+    S.hist[k] = Array(12).fill(0);
+    for (let i=0; i<12; i++) { const el=document.getElementById(`g${k}${i}`); if(el) el.value=''; }
+  });
+  updateTotals();
+  S.ran = false; S.foreAI = []; S.foreBase = []; S.overrides = []; S.manEdited = [];
+  if (mainCI) { mainCI.destroy(); mainCI = null; }
+  if (varCI)  { varCI.destroy();  varCI  = null; }
+  document.getElementById('ftbody').innerHTML = '<tr><td colspan="9"><div class="empty">Load data and run forecast</div></td></tr>';
+  document.getElementById('owg').innerHTML    = '<div class="empty" style="padding:10px">Run forecast first</div>';
+  document.getElementById('cgrid').innerHTML  = '<div class="empty">Run forecast to view scenario matrix</div>';
+}
+
+/* ═══════════════════════════════════════════════
+   EXPORT XLSX
+═══════════════════════════════════════════════ */
+function exportXLSX() {
+  if (!S.ran) { alert('Run a forecast first.'); return; }
+  if (typeof XLSX === 'undefined') { alert('XLSX library not loaded. Check your internet connection.'); return; }
+
+  const wb = XLSX.utils.book_new();
+  const rm = RMULT[S.region] || 1;
+  const dF = applyCase(applyMethod(getStream('D').map(v=>v*rm)));
+  const iF = applyCase(applyMethod(getStream('I').map(v=>v*rm)));
+  const pF = applyCase(applyMethod(getStream('P').map(v=>v*rm)));
+
+  // Sheet 1: Summary
+  const ws1 = XLSX.utils.aoa_to_sheet([
+    ['Sales Forecasting Dashboard — Export'],
+    [`Generated: ${new Date().toLocaleString('en-GB')}`],
+    [`Region: ${S.region}  |  Case: ${S.caseMode.toUpperCase()}  |  Method: ${document.getElementById('methodSel').value.toUpperCase()}  |  Horizon: ${S.horizon} months`],
+    [],
+    ['KPI', 'Value (€k)'],
+    ['12M Historical Total', sm(applyRegion(combHist(S.togs)))],
+    ['Scenario Forecast Total', sm(S.overrides)],
+    ['Baseline Forecast Total (All · Mid)', sm(S.foreBase)],
+    ['Max Monthly Variance', S.foreAI.length ? Math.max(...S.foreAI.map((v,i)=>Math.abs(v-(S.foreBase[i]||0)))) : 0],
+  ]);
+  ws1['!cols'] = [{wch:42},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws1, 'Summary');
+
+  // Sheet 2: Historical Input
+  const ws2 = XLSX.utils.aoa_to_sheet([
+    ['Stream', ...S.hlabs, 'Total'],
+    ['Direct Sales (€k)', ...getStream('D'), sm(getStream('D'))],
+    ['Indirect Sales (€k)', ...getStream('I'), sm(getStream('I'))],
+    ['Production Fcst (€k)', ...getStream('P'), sm(getStream('P'))],
+    ['Total (€k)', ...Array.from({length:12},(_,i)=>n(S.hist.D[i])+n(S.hist.I[i])+n(S.hist.P[i])), sm(getStream('D'))+sm(getStream('I'))+sm(getStream('P'))],
+  ]);
+  ws2['!cols'] = [{wch:22},...Array(13).fill({wch:10})];
+  XLSX.utils.book_append_sheet(wb, ws2, 'Historical Input');
+
+  // Sheet 3: Monthly Forecast
+  const mRows = [['Month','AI Forecast (€k)','Override (€k)','Baseline (€k)','%Δ vs AI','%Δ vs Baseline','Direct (€k)','Indirect (€k)','Production (€k)']];
+  S.foreAI.forEach((ai,i) => {
+    const ow=S.overrides[i]??ai, base=S.foreBase[i]??ai;
+    const vA=ai?((ow-ai)/ai*100):0, vB=base?((ow-base)/base*100):0;
+    mRows.push([S.flabs[i], ai, ow, base, +vA.toFixed(2), +vB.toFixed(2), dF[i]??0, iF[i]??0, pF[i]??0]);
+  });
+  mRows.push(['Total', sm(S.foreAI), sm(S.overrides), sm(S.foreBase), '', '', sm(dF), sm(iF), sm(pF)]);
+  const ws3 = XLSX.utils.aoa_to_sheet(mRows);
+  ws3['!cols'] = [{wch:12},...Array(8).fill({wch:16})];
+  XLSX.utils.book_append_sheet(wb, ws3, 'Monthly Forecast');
+
+  // Sheet 4: Quarterly Forecast
+  const qRows = [['Quarter','AI Forecast (€k)','Override (€k)','Baseline (€k)','%Δ vs AI','%Δ vs Baseline']];
+  qSm(S.foreAI).forEach((ai,i) => {
+    const ow=qSm(S.overrides)[i]??ai, base=qSm(S.foreBase)[i]??ai;
+    const vA=ai?((ow-ai)/ai*100):0, vB=base?((ow-base)/base*100):0;
+    const yr=new Date().getFullYear()+(i>=4?1:0);
+    qRows.push([`Q${(i%4)+1} ${yr}`, ai, ow, base, +vA.toFixed(2), +vB.toFixed(2)]);
+  });
+  qRows.push(['Total', sm(S.foreAI), sm(S.overrides), sm(S.foreBase), '', '']);
+  const ws4 = XLSX.utils.aoa_to_sheet(qRows);
+  ws4['!cols'] = [{wch:14},...Array(5).fill({wch:18})];
+  XLSX.utils.book_append_sheet(wb, ws4, 'Quarterly Forecast');
+
+  // Sheet 5: Variance Matrix
+  const vmRows = [['Scenario','Total Forecast (€k)','vs Baseline (€k)','%Δ vs Baseline','Case','Region']];
+  const baseTotal = sm(applyMethod(applyRegion(combHist({D:true,I:true,P:true}))));
+  COMBOS.forEach(c => {
+    const raw = applyMethod(applyRegion(combHist(c.tog)));
+    const total = sm(applyCase(raw));
+    const delta = baseTotal ? ((total-baseTotal)/baseTotal*100) : 0;
+    vmRows.push([c.label, total, +(total-baseTotal).toFixed(1), +delta.toFixed(2), S.caseMode.toUpperCase(), S.region]);
+  });
+  const ws5 = XLSX.utils.aoa_to_sheet(vmRows);
+  ws5['!cols'] = [{wch:26},...Array(3).fill({wch:20}),{wch:10},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, ws5, 'Variance Matrix');
+
+  const region = S.region.replace(/\s+/g,'_');
+  XLSX.writeFile(wb, `Sales_Forecast_${region}_${S.caseMode.toUpperCase()}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+/* ═══════════════════════════════════════════════
+   INIT — build grid once, never again
+═══════════════════════════════════════════════ */
+buildGrid();
+</script>
+</body>
+</html>
